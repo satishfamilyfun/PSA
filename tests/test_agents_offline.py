@@ -50,6 +50,18 @@ def test_guard_blocks_other_ticket(project):
     assert result.returncode == 2 and "PSA-3" in result.stderr
 
 
+def test_guard_ignores_keys_cited_in_body(project):
+    event = {"tool_name": "mcp__atlassian__addOrEditJiraIssueComment",
+             "tool_input": {"issueIdOrKey": "PSA-3", "commentBody": "Blocked by PSA-9; see NFR-6 and FR-1.6"}}
+    assert run_hook("guard_jira_writes.py", event, project).returncode == 0
+
+
+def test_guard_blocks_other_project(project):
+    event = {"tool_name": "mcp__atlassian__addOrEditJiraIssueComment",
+             "tool_input": {"issueIdOrKey": "ABC-3", "commentBody": "x"}}
+    assert run_hook("guard_jira_writes.py", event, project).returncode == 2
+
+
 def test_guard_blocks_editing_existing_comment(project):
     event = {"tool_name": "mcp__atlassian__addOrEditJiraIssueComment",
              "tool_input": {"issueIdOrKey": "PSA-3", "commentId": "10001", "commentBody": "x"}}

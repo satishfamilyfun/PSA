@@ -40,14 +40,15 @@ if tool in ALWAYS_BLOCKED:
     block(tool_name, ALWAYS_BLOCKED[tool])
 
 if tool in WRITE_TOOLS:
-    keys = set(re.findall(r"\b[A-Z][A-Z0-9]+-\d+\b", json.dumps(tool_input)))
-    if not keys:
-        block(tool_name, "could not find a ticket key in the request")
-    if any(not k.startswith(PROJECT_KEY + "-") for k in keys):
+    # Only the target field decides where the write lands; keys cited in body text are just references.
+    target = str(tool_input.get("issueIdOrKey", "")).strip().upper()
+    if not re.fullmatch(r"[A-Z][A-Z0-9]+-\d+", target):
+        block(tool_name, "issueIdOrKey must be a ticket key such as PSA-3")
+    if not target.startswith(PROJECT_KEY + "-"):
         block(tool_name, f"writes are limited to project {PROJECT_KEY}")
     active = active_ticket()
-    if active.get("key") and keys != {active["key"]}:
-        block(tool_name, f"this run may only write to {active['key']}, not {', '.join(sorted(keys))}")
+    if active.get("key") and target != active["key"]:
+        block(tool_name, f"this run may only write to {active['key']}, not {target}")
 
     if tool == "addOrEditJiraIssueComment" and any(
             k.lower() in ("commentid", "comment_id") for k in tool_input):
@@ -65,6 +66,6 @@ if tool in WRITE_TOOLS:
         if changed - allowed:
             block(tool_name, f"may only change {sorted(allowed)}, not {sorted(changed - allowed)}")
 
-    audit({"event": "write_allowed", "tool": tool_name, "keys": sorted(keys),
+    audit({"event": "write_allowed", "tool": tool_name, "key": target,
            "input": short(tool_input)})
 sys.exit(0)
