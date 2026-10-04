@@ -1,0 +1,8 @@
+.env
+seed_state.json
+runs/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.claude/settings.local.json

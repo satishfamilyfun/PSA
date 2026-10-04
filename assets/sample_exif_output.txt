@@ -1,0 +1,38 @@
+Sample EXIF output from prototype script (exif_probe.py), 5 photos from family sources
+=====================================================================================
+
+File: E:\Photos\2019\IMG_4521.JPG
+  Source:           External drive
+  Camera:           Apple iPhone 8
+  DateTimeOriginal: 2019:06:09 17:42:10
+  GPSLatitude:      30 deg 15' 59.04" N
+  GPSLongitude:     97 deg 44' 34.20" W
+  Notes:            Birthday party, Austin
+
+File: D:\PhoneBackups\Mom\Camera\IMG_20230609_101512.HEIC
+  Source:           Mom's phone backup
+  Camera:           Apple iPhone 14
+  DateTimeOriginal: 2023:06:09 10:15:12
+  GPSLatitude:      30 deg 16' 2.10" N
+  GPSLongitude:     97 deg 44' 40.88" W
+  Notes:            HEIC format, read with pillow-heif
+
+File: D:\PhoneBackups\Dad\Camera\PXL_20220704_201133.jpg
+  Source:           Dad's phone backup
+  Camera:           Google Pixel 6
+  DateTimeOriginal: 2022:07:04 20:11:33
+  GPSLatitude:      (none - location was turned off)
+  GPSLongitude:     (none)
+
+File: E:\Scans\Album1\scan_0042.jpg
+  Source:           External drive (scanned print)
+  Camera:           Epson Perfection V39 (scanner)
+  DateTimeOriginal: 1980:01:01 00:00:00   <- scanner default, not the real date
+  GPSLatitude:      (none)
+
+File: D:\PhoneBackups\Mom\WhatsApp\IMG-20210314-WA0007.jpg
+  Source:           Mom's phone backup
+  Camera:           (none - EXIF stripped by WhatsApp)
+  DateTimeOriginal: (none)
+  GPSLatitude:      (none)
+  Notes:            Date only available from the file name

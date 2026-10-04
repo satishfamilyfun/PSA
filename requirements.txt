@@ -1,0 +1,6 @@
+requests>=2.32
+python-dotenv>=1.0
+markdown>=3.6
+pillow>=11.0
+pytest>=8.0
+mcp>=2.0

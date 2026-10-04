@@ -1,0 +1,39 @@
+{
+  "_doc": "Each check passes when every group matches; a group matches when any of its phrases appears in the report (case-insensitive). {{S1}} placeholders become real Jira keys.",
+  "S3": {
+    "role": "ba",
+    "checks": [
+      {"name": "Duplicate removal flagged as Phase 2", "groups": [["duplicat"], ["phase 2", "{{S14}}"]]},
+      {"name": "Screenshot filter from wireframe noticed", "groups": [["screenshot"], ["wireframe", "attachment", "mockup"]]},
+      {"name": "Size filter from wireframe noticed", "groups": [["100 kb", "100kb", "smaller than"]]},
+      {"name": "Missing acceptance criteria flagged", "groups": [["acceptance criteria"], ["missing", "no acceptance", "lacks", "absent", "fail"]]},
+      {"name": "Blocker (schema story) identified", "groups": [["{{S1}}"], ["block"]]},
+      {"name": "Kids or non-technical users considered", "groups": [["kid", "child", "10-year", "non-technical"]]},
+      {"name": "Recommends needs-clarification", "groups": [["needs-clarification"]]}
+    ]
+  },
+  "S6": {
+    "role": "ba",
+    "checks": [
+      {"name": "Blocked by face clustering story", "groups": [["{{S5}}"], ["block"]]},
+      {"name": "Blocker not done", "groups": [["to do", "not done", "not started", "open", "unresolved", "in progress"]]},
+      {"name": "Open 5 vs 10 question surfaced", "groups": [["5 or 10", "5 vs 10", "5 and 10", "five or ten", "5/10", "5 vs. 10"]]},
+      {"name": "Mockup shows 6 faces (assumption conflict)", "groups": [["6 sample", "six", "6 faces", "shows 6", "6 face"]]},
+      {"name": "15-person limit", "groups": [["15"]]},
+      {"name": "Unknown faces handling", "groups": [["unknown"]]},
+      {"name": "Kids considered", "groups": [["kid", "child"]]},
+      {"name": "Recommends needs-clarification", "groups": [["needs-clarification"]]}
+    ]
+  },
+  "S4": {
+    "role": "qa",
+    "checks": [
+      {"name": "Gherkin scenarios", "groups": [["scenario"], ["given"], ["when"], ["then"]]},
+      {"name": "Coverage table", "groups": [["coverage"]]},
+      {"name": "HEIC case", "groups": [["heic"]]},
+      {"name": "Missing GPS case", "groups": [["gps"], ["no gps", "without gps", "missing", "none", "turned off"]]},
+      {"name": "Scanner date case", "groups": [["1980", "scanner", "scanned"]]},
+      {"name": "Gap: WhatsApp date only in file name", "groups": [["whatsapp"], ["file name", "filename", "gap"]]}
+    ]
+  }
+}
