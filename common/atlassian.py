@@ -46,7 +46,8 @@ class Atlassian:
 # ---------- Atlassian Document Format (Jira v3 rich text) ----------
 
 def text_to_adf(text: str) -> dict:
-    """Convert simple text to ADF. Supports '## heading', '- bullet' and blank-line paragraphs."""
+    """Convert simple text to ADF. Supports '## heading', '- bullet' (indented lines continue it)
+    and blank-line paragraphs; lines within a paragraph are joined with a space."""
     content, para, bullets = [], [], []
 
     def flush_para():
@@ -69,18 +70,23 @@ def text_to_adf(text: str) -> dict:
     for raw in text.strip().splitlines():
         line = raw.strip()
         if not line:
-            flush_para(); flush_bullets()
+            flush_para()
+            flush_bullets()
         elif line.startswith("## "):
-            flush_para(); flush_bullets()
+            flush_para()
+            flush_bullets()
             content.append({"type": "heading", "attrs": {"level": 3},
                             "content": [{"type": "text", "text": line[3:]}]})
         elif line.startswith("- "):
             flush_para()
             bullets.append(line[2:])
+        elif bullets and raw[:1].isspace():
+            bullets[-1] += " " + line  # indented line continues the bullet above
         else:
             flush_bullets()
             para.append(line)
-    flush_para(); flush_bullets()
+    flush_para()
+    flush_bullets()
     return {"type": "doc", "version": 1, "content": content or [{"type": "paragraph", "content": []}]}
 
 

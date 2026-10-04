@@ -46,7 +46,7 @@ Fill in `ATLASSIAN_EMAIL` and `ATLASSIAN_API_TOKEN`, save and close. `.env` is i
 ```powershell
 pytest
 ```
-Expect `76 passed`.
+Expect `77 passed`.
 
 ### 4. Seed Jira, then Confluence (order matters)
 ```powershell

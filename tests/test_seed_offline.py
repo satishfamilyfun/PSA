@@ -66,6 +66,14 @@ def test_adf_round_trip():
     assert "Given C, then D." in adf_to_text(adf)
 
 
+def test_adf_wrapped_lines_join():
+    adf = text_to_adf("Intro that is\nwrapped.\n\n- Given A,\n  then B.\n- Given C.")
+    para, bullets = adf["content"]
+    assert para["content"][0]["text"] == "Intro that is wrapped."
+    items = [i["content"][0]["content"][0]["text"] for i in bullets["content"]]
+    assert items == ["Given A, then B.", "Given C."]
+
+
 def test_seed_creates_everything(fake, tmp_path):
     seed_jira.main()
     created = [c for c in fake.calls if c[:2] == ("POST", "/rest/api/3/issue")]

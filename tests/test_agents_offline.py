@@ -127,7 +127,8 @@ class FakeAPI:
                                {"filename": "mockup.png", "mimeType": "image/png", "size": 9, "content": "u"}],
                 "issuelinks": [
                     {"type": {"inward": "is blocked by", "outward": "blocks"},
-                     "inwardIssue": {"key": "PSA-5", "fields": {"summary": "Face clustering", "status": {"name": "To Do"}}}},
+                     "inwardIssue": {"key": "PSA-5",
+                                     "fields": {"summary": "Face clustering", "status": {"name": "To Do"}}}},
                     {"type": {"inward": "is blocked by", "outward": "blocks"},
                      "outwardIssue": {"key": "PSA-7", "fields": {"summary": "Search", "status": {"name": "To Do"}}}}]}}
         if path.startswith("/rest/api/3/issue/PSA-5?"):
@@ -153,6 +154,7 @@ def test_ticket_bundle(monkeypatch, tmp_path):
 def test_mcp_server_registers_tool():
     sys.path.insert(0, str(ROOT / "tools"))
     import asyncio
+
     import psa_tools_mcp
     tools = asyncio.run(psa_tools_mcp.server.list_tools())
     assert [t.name for t in tools] == ["get_ticket_bundle"]

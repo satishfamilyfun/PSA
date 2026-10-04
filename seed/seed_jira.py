@@ -14,7 +14,8 @@ def pick_issue_types(api, project_key):
     names = {t["name"] for t in project.get("issueTypes", []) if not t.get("subtask")}
     story = "Story" if "Story" in names else "Task"
     epic = "Epic" if "Epic" in names else None
-    print(f"Project {project_key} found. Using issue type '{story}'" + (", with an Epic." if epic else ", no Epic type."))
+    print(f"Project {project_key} found. Using issue type '{story}'"
+          + (", with an Epic." if epic else ", no Epic type."))
     return story, epic
 
 
@@ -82,7 +83,8 @@ def main():
             with open(path, "rb") as fh:
                 api.post(f"/rest/api/3/issue/{key}/attachments",
                          headers={"X-Atlassian-Token": "no-check"},
-                         files={"file": (path.name, fh, mimetypes.guess_type(path.name)[0] or "application/octet-stream")})
+                         files={"file": (path.name, fh,
+                                         mimetypes.guess_type(path.name)[0] or "application/octet-stream")})
             print(f"           attached {path.name}")
 
     for blocker, blocked in BLOCKS:

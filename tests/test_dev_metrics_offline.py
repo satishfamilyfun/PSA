@@ -206,7 +206,8 @@ def transcript_lines():
         {"type": "user", "timestamp": "2026-10-05T10:00:00Z", "message": {"role": "user", "content": header}},
         # one API message split over two lines (text + tool_use) with repeated usage: must count once
         {"type": "assistant", "timestamp": "2026-10-05T10:00:05Z",
-         "message": {"id": "m1", "model": "claude-sonnet-5", "usage": usage, "content": [{"type": "text", "text": "ok"}]}},
+         "message": {"id": "m1", "model": "claude-sonnet-5", "usage": usage,
+                     "content": [{"type": "text", "text": "ok"}]}},
         {"type": "assistant", "timestamp": "2026-10-05T10:00:06Z",
          "message": {"id": "m1", "model": "claude-sonnet-5", "usage": usage,
                      "content": [{"type": "tool_use", "id": "t1", "name": "Write", "input": {}}]}},
@@ -271,7 +272,8 @@ def test_report_aggregate_and_dashboard(tmp_path, monkeypatch):
     assert k["cache_hit_ratio"] == pytest.approx(800 / 1300, abs=0.01)
     summary = report.markdown_summary("PSA-12", data, plans["PSA-12"])
     assert "First-pass approval: 50%" in summary and "| PSA-31 |" in summary
-    html = report.dashboard(data, runs, [{"ok": True, "model": "haiku", "score_pct": 90, "cost_usd": 0.01}], [], "PSA-12")
+    bench = [{"ok": True, "model": "haiku", "score_pct": 90, "cost_usd": 0.01}]
+    html = report.dashboard(data, runs, bench, [], "PSA-12")
     assert "chart.umd.min.js" in html and '"first_pass_approval": 0.5' in html
 
 
