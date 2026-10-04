@@ -1,0 +1,9 @@
+line-length = 120
+extend-exclude = ["app/ui/node_modules", "runs"]
+
+[lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = ["E731"]
+
+[lint.per-file-ignores]
+"metrics/report.py" = ["E501"]  # embedded HTML/JS dashboard template

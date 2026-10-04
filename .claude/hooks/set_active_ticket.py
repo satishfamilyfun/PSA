@@ -5,10 +5,10 @@ import re
 
 from _hooklib import ACTIVE, RUNS, audit, now, read_event
 
-ROLES = {"ba-review": "ba", "qa-design": "qa"}
+ROLES = {"ba-review": "ba", "qa-design": "qa", "dev-implement": "dev"}
 
 event = read_event()
-match = re.search(r"/(ba-review|qa-design)\s+([A-Za-z]+-\d+)", event.get("prompt", ""))
+match = re.search(r"/(ba-review|qa-design|dev-implement)\s+([A-Za-z]+-\d+)", event.get("prompt", ""))
 if match:
     RUNS.mkdir(exist_ok=True)
     record = {"key": match.group(2).upper(), "role": ROLES[match.group(1)], "started_at": now()}
