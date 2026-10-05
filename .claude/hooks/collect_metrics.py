@@ -1,8 +1,16 @@
-"""SubagentStop hook: measure the finished subagent run from its transcript and append one
-record to runs/metrics/agent_runs.jsonl (tokens by type and model, API-equivalent cost,
-duration, turns, tool calls and errors, plus story, task, mode and attempt)."""
+"""Metrics hook: append one record per measured run to runs/metrics/agent_runs.jsonl
+(tokens by type and model, API-equivalent cost, duration, turns, tool calls and errors,
+plus story, task, mode and attempt).
+
+  SubagentStop:              python collect_metrics.py
+      Measures the finished subagent from its own transcript.
+  Stop (main session):       python collect_metrics.py --orchestrator
+      Measures the main session ("orchestrator") incrementally: Stop fires after every turn,
+      so only transcript lines added since the last call are counted (offset kept per session).
+"""
 import json
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -90,29 +98,80 @@ def summarize(lines: list[dict], pricing: dict) -> dict:
             "tool_calls": len(tool_ids), "tool_errors": errors}
 
 
-def main():
-    event = read_event()
+def read_lines(path: Path, start: int = 0) -> tuple[list[dict], int]:
+    """Parse JSONL lines from index `start`; returns (parsed lines, total line count)."""
+    raw = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    lines = []
+    for text in raw[start:]:
+        try:
+            lines.append(json.loads(text))
+        except json.JSONDecodeError:
+            continue
+    return lines, len(raw)
+
+
+def append_record(record: dict) -> None:
+    out = RUNS / "metrics"
+    out.mkdir(parents=True, exist_ok=True)
+    with (out / "agent_runs.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+
+
+def load_pricing() -> dict:
+    return json.loads(PRICING.read_text()) if PRICING.exists() else {}
+
+
+def subagent_run(event: dict) -> None:
     active = active_ticket()
     record = {"ts": now(), "agent": event.get("agent_type") or "unknown",
               "session_id": event.get("session_id"), "story": active.get("key"),
               "task": active.get("key"), "mode": active.get("role"), "attempt": "1"}
     transcript = find_transcript(event)
     if transcript:
-        lines = []
-        for raw in transcript.read_text(encoding="utf-8", errors="replace").splitlines():
-            try:
-                lines.append(json.loads(raw))
-            except json.JSONDecodeError:
-                continue
-        pricing = json.loads(PRICING.read_text()) if PRICING.exists() else {}
-        record.update({k: v for k, v in summarize(lines, pricing).items() if v not in (None, "")})
+        lines, _ = read_lines(transcript)
+        record.update({k: v for k, v in summarize(lines, load_pricing()).items() if v not in (None, "")})
         record["transcript"] = str(transcript)
     else:
         record["note"] = "transcript not found"
-    out = RUNS / "metrics"
-    out.mkdir(parents=True, exist_ok=True)
-    with (out / "agent_runs.jsonl").open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record) + "\n")
+    append_record(record)
+
+
+def orchestrator_run(event: dict) -> None:
+    transcript = Path(event.get("transcript_path") or "")
+    session = event.get("session_id") or transcript.stem
+    if not transcript.is_file():
+        return
+    state_file = RUNS / "metrics" / "orchestrator_offsets.json"
+    try:
+        offsets = json.loads(state_file.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        offsets = {}
+    start = offsets.get(session, 0)
+    lines, total = read_lines(transcript, start)
+    # Older Claude Code versions also wrote subagent messages here, marked as sidechain:
+    # those are already measured by the SubagentStop hook, so skip them.
+    lines = [line for line in lines if not line.get("isSidechain")]
+    offsets[session] = total
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(offsets, indent=2))
+
+    summary = summarize(lines, load_pricing())
+    if not summary["turns"]:
+        return  # nothing billable since the last turn
+    active = active_ticket()
+    for field in ("mode", "story", "task", "attempt"):
+        summary.pop(field, None)  # delegation headers belong to subagents, not the orchestrator
+    append_record({"ts": now(), "agent": "orchestrator", "session_id": session,
+                   "story": active.get("key"), "task": active.get("key"),
+                   "mode": active.get("role"), "attempt": "1", **summary, "transcript": str(transcript)})
+
+
+def main():
+    event = read_event()
+    if "--orchestrator" in sys.argv:
+        orchestrator_run(event)
+    else:
+        subagent_run(event)
 
 
 if __name__ == "__main__":

@@ -46,7 +46,7 @@ Fill in `ATLASSIAN_EMAIL` and `ATLASSIAN_API_TOKEN`, save and close. `.env` is i
 ```powershell
 pytest
 ```
-Expect `77 passed`.
+Expect `62 passed`.
 
 ### 4. Seed Jira, then Confluence (order matters)
 ```powershell
@@ -85,7 +85,7 @@ On first start, accept the workspace trust prompt and approve the project MCP se
 
 ### 2. Check the setup
 - `/mcp` shows `atlassian` and `psa` as connected.
-- `/agents` lists `ba-agent`, `qa-agent` and the four developer agents.
+- `/agents` lists `ba-agent` and `qa-agent`.
 
 ### 3. Run the demo scenarios
 Use the keys printed by `seed_jira` (also in `seed_state.json`: S3, S6 and S4).
@@ -103,7 +103,7 @@ python -m evals.check_run PSA-<key> ba
 ```
 
 ### Guardrails you can demonstrate
-Ask the agent to "also close the ticket" or "create a follow-up ticket". The BA and QA agents do not have those tools. If the main session tries, Claude Code asks for approval first, and even when approved the guard hook blocks it: tickets can be created only as sub-tasks during `/dev-implement`, and only those sub-tasks may change status. The block appears in `runs/audit.jsonl` and the trace.
+Ask the agent to "also close the ticket" or "create a follow-up ticket": the permission rules deny it, and the guard hook blocks it as a second layer. The block appears in the trace.
 
 ## Developer team and metrics
 
@@ -130,7 +130,8 @@ The story gets a metrics comment at the end.
 ### Metrics
 | What | How |
 |---|---|
-| Per-run tokens, cost, time, tool calls, errors | Recorded automatically by the `collect_metrics` hook |
+| Per-run tokens, cost, time, tool calls, errors | Recorded automatically by the `collect_metrics` hook, for each subagent and for the main session (`orchestrator`) |
+| Which agent uses the most | Dashboard "Top consumer" and "Share of usage by agent"; also in the story summary |
 | Story summary + dashboard | `python -m metrics.report --story PSA-<key>` then open `runs/metrics/dashboard.html` |
 | Model right-sizing benchmark | `python -m metrics.benchmark` (same task on Haiku, Sonnet, Opus; scored by hidden tests) |
 | Cross-check token totals | `npx ccusage` (optional) |

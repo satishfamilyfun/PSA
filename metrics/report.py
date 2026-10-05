@@ -81,12 +81,26 @@ def aggregate(runs: list[dict], plans: dict, audit: list[dict]) -> dict:
     blocked = [e for e in audit if e.get("event") == "blocked"]
 
     tot = lambda k: sum(r.get(k, 0) or 0 for r in runs)
+    share = []
+    for agent, a in by_agent.items():
+        share.append({
+            "agent": agent, "models": sorted(models[agent]), "runs": int(a["runs"]),
+            "tokens": int(a["total_tokens"]), "cost": round(a["cost_usd_equiv"], 4),
+            "token_pct": round(100 * a["total_tokens"] / tot("total_tokens"), 1) if tot("total_tokens") else 0,
+            "cost_pct": round(100 * a["cost_usd_equiv"] / tot("cost_usd_equiv"), 1) if tot("cost_usd_equiv") else 0,
+            "avg_tokens_per_run": round(a["total_tokens"] / a["runs"]) if a["runs"] else 0,
+            "avg_cost_per_run": round(a["cost_usd_equiv"] / a["runs"], 4) if a["runs"] else 0,
+        })
+    share.sort(key=lambda row: (row["cost"], row["tokens"]), reverse=True)
     input_side = tot("input_tokens") + tot("cache_read_tokens") + tot("cache_write_tokens")
     return {
         "by_agent": {k: dict(v) for k, v in by_agent.items()},
+        "share": share,
         "models": {k: sorted(v) for k, v in models.items()},
         "kpis": {
             "agent_runs": len(runs),
+            "top_consumer": share[0]["agent"] if share else None,
+            "top_consumer_cost_pct": share[0]["cost_pct"] if share else None,
             "total_tokens": tot("total_tokens"),
             "cost_usd_equiv": round(tot("cost_usd_equiv"), 2),
             "avg_duration_s": round(tot("duration_s") / len(runs), 1) if runs else 0,
@@ -112,11 +126,15 @@ def markdown_summary(story: str, data: dict, plan: dict | None) -> str:
     lines = [f"Agent metrics for {story}", "",
              f"Runs: {k['agent_runs']} | Tokens: {k['total_tokens']:,} | API-equivalent cost: ${k['cost_usd_equiv']} "
              f"| Avg run: {k['avg_duration_s']} s | Cache hit ratio: {k['cache_hit_ratio']}", ""]
-    lines.append("| Agent | Model | Runs | Tokens | Cost (USD eq.) | Time (s) | Tool calls | Tool errors |")
-    lines.append("|---|---|---|---|---|---|---|---|")
-    for agent, a in sorted(data["by_agent"].items()):
-        lines.append(f"| {agent} | {', '.join(data['models'][agent])} | {int(a['runs'])} | {int(a['total_tokens']):,} "
-                     f"| {a['cost_usd_equiv']:.3f} | {a['duration_s']:.0f} | {int(a['tool_calls'])} | {int(a['tool_errors'])} |")
+    lines.append("Share of usage by agent (highest cost first):")
+    lines.append("")
+    lines.append("| Agent | Model | Runs | Tokens | % tokens | Cost (USD eq.) | % cost | Time (s) | Tool calls | Errors |")
+    lines.append("|---|---|---|---|---|---|---|---|---|---|")
+    for row in data["share"]:
+        a = data["by_agent"][row["agent"]]
+        lines.append(f"| {row['agent']} | {', '.join(row['models'])} | {row['runs']} | {row['tokens']:,} "
+                     f"| {row['token_pct']}% | {row['cost']:.3f} | {row['cost_pct']}% | {a['duration_s']:.0f} "
+                     f"| {int(a['tool_calls'])} | {int(a['tool_errors'])} |")
     if plan:
         lines += ["", "| Task | Sub-task | Agent | Status | Attempts |", "|---|---|---|---|---|"]
         for t in plan.get("tasks", []):
@@ -175,10 +193,13 @@ DASHBOARD_TEMPLATE = r"""<!doctype html>
   h2 { font-size:15px; margin:0 0 10px } table { width:100%; border-collapse:collapse; font-size:13px }
   th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line) } th { color:var(--muted); font-weight:600 }
   .wrap { overflow-x:auto } .empty { color:var(--muted); font-size:13px }
+  .bar { display:flex; align-items:center; gap:8px; min-width:160px }
+  .bar i { display:block; height:10px; border-radius:5px; background:var(--a) } .bar.cost i { background:var(--b) }
 </style></head><body>
 <header><h1>PSA agent metrics</h1><p>Scope: __TITLE__. Cost is the API-equivalent estimate from metrics/pricing.json, not your Pro bill.</p></header>
 <main>
   <section class="kpis" id="kpis"></section>
+  <section class="card"><h2>Share of usage by agent (highest cost first)</h2><div class="wrap"><table id="share"></table></div></section>
   <section class="grid">
     <div class="card"><h2>Tokens by agent</h2><canvas id="tokens"></canvas></div>
     <div class="card"><h2>API-equivalent cost and time by agent</h2><canvas id="cost"></canvas></div>
@@ -192,7 +213,8 @@ DASHBOARD_TEMPLATE = r"""<!doctype html>
 const P = __PAYLOAD__;
 const k = P.data.kpis, fmt = n => n == null ? "n/a" : Number(n).toLocaleString();
 const pct = n => n == null ? "n/a" : Math.round(n * 100) + "%";
-const kpis = [["Agent runs", fmt(k.agent_runs)], ["Total tokens", fmt(k.total_tokens)],
+const kpis = [["Top consumer", k.top_consumer ? `${k.top_consumer} (${k.top_consumer_cost_pct}% of cost)` : "n/a"],
+  ["Agent runs", fmt(k.agent_runs)], ["Total tokens", fmt(k.total_tokens)],
   ["API-equiv. cost", "$" + k.cost_usd_equiv], ["Avg run time", k.avg_duration_s + " s"],
   ["Cache hit ratio", pct(k.cache_hit_ratio)], ["Tool error rate", pct(k.tool_error_rate)],
   ["First-pass approval", pct(k.first_pass_approval)], ["Rework rounds", fmt(k.rework_rounds)],
@@ -225,6 +247,10 @@ if (ok.length) {
 const table = (id, head, rows) => document.getElementById(id).innerHTML = rows.length
   ? `<tr>${head.map(h => `<th>${h}</th>`).join("")}</tr>` + rows.map(r => `<tr>${r.map(c => `<td>${c ?? ""}</td>`).join("")}</tr>`).join("")
   : `<tr><td class="empty">No data yet</td></tr>`;
+const bar = (pct, cls) => `<span class="bar ${cls}"><i style="width:${Math.max(pct, 1)}%"></i>${pct}%</span>`;
+table("share", ["Agent", "Model", "Runs", "Tokens", "Share of tokens", "Cost (USD eq.)", "Share of cost", "Avg tokens per run"],
+  P.data.share.map(s => [s.agent, s.models.join(", "), s.runs, fmt(s.tokens), bar(s.token_pct, ""), "$" + s.cost,
+    bar(s.cost_pct, "cost"), fmt(s.avg_tokens_per_run)]));
 table("evals", ["Ticket", "Role", "Findings found", "Score"], P.evals.map(e => [e.ticket, e.role, `${e.passed}/${e.total}`, pct(e.passed / e.total)]));
 table("runs", ["When", "Agent", "Model", "Story", "Task", "Mode", "Try", "Tokens", "Cost", "Time (s)", "Tools", "Errors"],
   P.runs.slice().reverse().map(r => [(r.ts || "").slice(0, 16).replace("T", " "), r.agent, r.model, r.story, r.task, r.mode, r.attempt,
