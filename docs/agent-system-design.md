@@ -6,9 +6,10 @@ Build agents that take on SDLC roles for the Photo Sorting App (PSA) project. Ea
 ## 2. Scope
 | In this build | Designed, not built |
 |---|---|
-| BA agent (refine stories, check Definition of Ready) | Developer agent (implementation plan, pull request) |
-| QA agent (test design from acceptance criteria) | PM agent (sprint summary, risk report) |
-| Hooks, skills, custom attachment tool, evaluations | Triggering from Jira webhooks or CI |
+| BA agent (refine stories, check Definition of Ready) | PM agent (sprint summary, risk report) |
+| QA agent (test design from acceptance criteria) | Triggering from Jira webhooks or CI |
+| Developer team: senior (Opus), database and UI (Sonnet), junior (Haiku) | Live OpenTelemetry dashboards |
+| Hooks, skills, custom attachment tool, evaluations, metrics and model benchmark | |
 
 ## 3. Platform and standards
 | Concern | Choice | Standard |
@@ -57,7 +58,7 @@ flowchart TD
 |---|---|---|---|---|
 | BA | Ticket key | DoR check, scope and dependency analysis, AC writing, clarifying questions | Comment, refined description, label | Jira read and write (comment, edit, labels), Confluence read, psa-tools |
 | QA | Ticket key (ready-for-dev) | Map each AC to tests, add edge cases from attachments and test strategy, flag untestable AC | Gherkin test cases as a comment, coverage table, gaps | Jira read, comment; Confluence read; psa-tools |
-| Developer (design only) | Ready ticket | Implementation plan, file changes, tests, PR | PR link on ticket | Jira read and comment, GitHub |
+| Developer team | Ready ticket | Plan, build, review, ship (section 11) | Code, PR, Jira sub-tasks, metrics comment | See section 11 |
 
 ## 7. Skills
 | Skill | Purpose | Used by |
@@ -75,7 +76,9 @@ flowchart TD
 | UserPromptSubmit | set_active_ticket.py | Records the ticket and role from `/ba-review` or `/qa-design` so writes can be restricted to that ticket |
 | PreToolUse (Atlassian write tools) | guard_jira_writes.py | Blocks destructive, generic and out-of-role tools; blocks writes to tickets other than the one under review or outside project PSA; blocks editing existing comments; limits editJiraIssue to description and labels (labels only for QA) |
 | PostToolUse (all MCP tools) | audit_log.py | Appends tool name, inputs (secrets removed), timestamp and outcome to `runs/audit.jsonl` |
-| SubagentStop | run_trace.py | Writes `runs/<timestamp>-<agent>.md` with ticket, findings summary and tools used |
+| SubagentStop | run_trace.py | Writes `runs/traces/<timestamp>-<agent>-<KEY>.md` with tools used, writes allowed and blocked actions |
+| SubagentStop | collect_metrics.py | Appends tokens, cost, duration, turns, tool calls and errors for the run to `runs/metrics/agent_runs.jsonl` |
+| PreToolUse (Write, Edit, Bash) | guard_code_writes.py | Folder ownership per developer agent; blocks dangerous git and delete commands |
 
 Permission rules in `.claude/settings.json` set Jira write tools to "ask", so a person approves every write.
 
@@ -93,13 +96,59 @@ Permission rules in `.claude/settings.json` set Jira write tools to "ask", so a 
 
 Evaluation: `evals/expected_findings.json` lists the checks; `evals/check_run.py` scores the agent's report (`runs/reports/<KEY>-<role>.md`) against them.
 
-## 11. Risks and mitigations
+## 11. Developer team
+| Agent | Model | Owns (write access) | Role |
+|---|---|---|---|
+| senior-developer | Opus (fallback Sonnet, effort high) | app/core/metadata, runs/plans, runs/reviews | Plans, creates Jira sub-tasks, writes complex logic, reviews all code |
+| database-developer | Sonnet | app/core/db, app/tests/test_db_* | Migrations, queries, DB tests |
+| ui-developer | Sonnet | app/ui/src | React + TypeScript components, Vitest tests |
+| junior-developer | Haiku | app/core/utils, app/tests | Small specified helpers and unit tests |
+
+`/dev-implement <KEY>` (main session = orchestrator): precondition check, PLAN, BUILD (parallel when independent),
+REVIEW, rework (max 2 rounds), verify (pytest, Vitest, ruff), ship (commit, push, PR with approval), metrics comment.
+Skills: plan-implementation, review-code, write-db-migration, build-ui-component, write-unit-tests.
+Guardrails: `guard_code_writes.py` enforces folder ownership by `agent_type`, blocks force push, push to main, hard reset,
+deletes and merges, and blocks git writes, package installs and shell redirection inside subagents.
+`guard_jira_writes.py` allows sub-task creation only under the active story and status changes only for planned sub-tasks.
+
+## 12. Metrics
+| Category | Metrics | Source |
+|---|---|---|
+| Consumption | Input, output, cache read and cache write tokens per agent and model; API-equivalent cost; cache hit ratio; share of tokens and cost per agent | `collect_metrics` hook: on SubagentStop for each subagent, on Stop for the main session ("orchestrator", measured incrementally per turn) |
+| Speed | Duration, turns, tool calls per run | Transcript |
+| Quality | Eval score (BA, QA); first-pass approval rate and rework rounds (developers); tests passed | evals, plan JSON, review file |
+| Oversight and safety | Jira writes requested, executed and declined; guardrail blocks; tool error rate | Audit log |
+| Efficiency | Tokens and cost per approved task | Report |
+| Right-sizing | Same task on Haiku, Sonnet, Opus: hidden-test score vs cost and time | `metrics/benchmark.py` (headless Claude Code) |
+
+Outputs: `runs/metrics/agent_runs.jsonl`, `benchmark.jsonl`, `dashboard.html`, and a Markdown summary posted to the story.
+
+## 13. Usage attribution per agent
+Goal: know which agent consumes the most tokens and cost.
+
+Within one Claude Code session all subagents share the session's login (here, one Pro subscription),
+so an agent cannot use its own account. Attribution is therefore done by identity, not by account.
+
+| Level | Agent identity | Where usage is attributed | Cost | Status |
+|---|---|---|---|---|
+| 1. Attribution metadata | Agent name recorded by the metrics hook for every run, including the orchestrator | `runs/metrics/agent_runs.jsonl`; dashboard "Share of usage by agent" and "Top consumer" | Free | **Implemented** |
+| 2. API key per agent | Each agent runs as its own headless Claude Code process with its own Anthropic API key; keys grouped into workspaces (for example BA/QA vs developer team) | Claude Console usage pages per key; Usage and Cost Admin API with `group_by[]=api_key_id` or `workspace_id` (requires an organization account) | Pay-as-you-go API | Production design |
+| 3. LLM gateway | Virtual key per agent on a gateway (for example LiteLLM) that forwards to the Anthropic API | Gateway dashboard, with per-agent budgets and rate limits | Gateway hosting + API | Production design |
+
+Level 1 attributes from the agents' own transcripts. Levels 2 and 3 attribute on the provider or gateway side,
+which is independent of the agents and supports budgets, at the cost of replacing in-session subagents with
+one process per agent and an orchestrator script. Level 1 records can be reconciled with Level 2 reports by model and day.
+
+## 14. Risks and mitigations
 | Risk | Mitigation |
 |---|---|
 | Official MCP server cannot fetch attachments | Custom psa-tools MCP server downloads them |
 | Pro plan usage limits | Sonnet for agents, concise KB pages, deterministic context script, limited rehearsals |
 | Agent writes something wrong to Jira | Permission prompt, guard hook, reset script restores tickets |
 | Non-deterministic output | Evaluation checklist, structured output templates in skills |
+| Subagent silently runs a different model | Model recorded per run from the transcript; do not set CLAUDE_CODE_SUBAGENT_MODEL |
+| Opus not available on Pro | Senior developer falls back to Sonnet with effort high; benchmark records "unavailable" |
+| A hook crashes and fails open | Audit logging never raises, so blocks always exit with code 2 |
 
-## 12. Future work
-Developer and PM agents; trigger from a Jira label via webhook or GitHub Actions running Claude Code headless; agent hand-off (BA marks ready, QA runs automatically).
+## 15. Future work
+PM agent; trigger from a Jira label via webhook or GitHub Actions running Claude Code headless; agent hand-off (BA marks ready, QA runs automatically).

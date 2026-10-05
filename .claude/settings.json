@@ -2,7 +2,23 @@
   "permissions": {
     "allow": [
       "Read",
+      "Glob",
+      "Grep",
       "Write(runs/**)",
+      "Edit(runs/**)",
+      "Write(app/**)",
+      "Edit(app/**)",
+      "Bash(python -m pytest:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff check:*)",
+      "Bash(npm --prefix app/ui test:*)",
+      "Bash(npm test:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git add:*)",
+      "Bash(python -m metrics.report:*)",
       "mcp__psa__get_ticket_bundle",
       "mcp__atlassian__getAccessibleAtlassianResources",
       "mcp__atlassian__atlassianUserInfo",
@@ -10,22 +26,29 @@
       "mcp__atlassian__searchJiraIssuesUsingJql",
       "mcp__atlassian__searchConfluence",
       "mcp__atlassian__getConfluenceContent",
-      "mcp__atlassian__search"
+      "mcp__atlassian__search",
+      "mcp__atlassian__transitionJiraIssue"
     ],
     "ask": [
       "mcp__atlassian__addOrEditJiraIssueComment",
-      "mcp__atlassian__editJiraIssue"
+      "mcp__atlassian__editJiraIssue",
+      "mcp__atlassian__createJiraIssue",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)"
     ],
     "deny": [
       "mcp__atlassian__executeDestructive",
       "mcp__atlassian__executeWrite",
-      "mcp__atlassian__createJiraIssue",
-      "mcp__atlassian__transitionJiraIssue",
       "mcp__atlassian__createConfluenceContent",
       "mcp__atlassian__updateConfluenceContent",
       "mcp__atlassian__addGraphContext",
       "mcp__atlassian__getGraphContext",
-      "mcp__atlassian__getGraphObject"
+      "mcp__atlassian__getGraphObject",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(rm -rf:*)"
     ]
   },
   "hooks": {
@@ -34,14 +57,22 @@
     ],
     "PreToolUse": [
       {"matcher": "mcp__atlassian__.*",
-       "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_jira_writes.py\""}]}
+       "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_jira_writes.py\""}]},
+      {"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+       "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_code_writes.py\""}]}
     ],
     "PostToolUse": [
       {"matcher": "mcp__.*",
        "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/audit_log.py\""}]}
     ],
     "SubagentStop": [
-      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/run_trace.py\""}]}
+      {"hooks": [
+        {"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/run_trace.py\""},
+        {"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/collect_metrics.py\""}
+      ]}
+    ],
+    "Stop": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/collect_metrics.py\" --orchestrator"}]}
     ]
   }
 }
