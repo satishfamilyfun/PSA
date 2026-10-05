@@ -274,3 +274,28 @@ def test_share_ranking_and_top_consumer():
     assert data["kpis"]["top_consumer"] == "senior-developer"
     summary = report.markdown_summary("PSA-12", data, None)
     assert "| senior-developer | claude-opus-5 | 1 | 2,000 | 20.0% | 0.060 | 60.0% |" in summary
+
+
+# ---------- guard_jira_writes: keys cited in free text are not write targets ----------
+
+@pytest.mark.parametrize("tool,tool_input", [
+    ("addOrEditJiraIssueComment", {"issueIdOrKey": "PSA-11", "commentBody": "Blocked by PSA-9; see also PSA-14 (Phase 2)."}),
+    ("editJiraIssue", {"issueIdOrKey": "PSA-11", "fields": {"description": "Out of this story: removal (see PSA-14)"}}),
+    ("editJiraIssue", {"issueIdOrKey": "PSA-11", "fields": json.dumps({"description": "depends on PSA-9", "labels": ["x"]})}),
+])
+def test_keys_cited_in_text_are_allowed(tmp_path, tool, tool_input):
+    run_hook("set_active_ticket.py", {"prompt": "/ba-review PSA-11"}, tmp_path)
+    result = run_hook("guard_jira_writes.py", jira(tool, tool_input), tmp_path)
+    assert result.returncode == 0, result.stderr
+
+
+def test_target_key_still_enforced_when_text_cites_active(tmp_path):
+    run_hook("set_active_ticket.py", {"prompt": "/ba-review PSA-11"}, tmp_path)
+    event = jira("addOrEditJiraIssueComment", {"issueIdOrKey": "PSA-9", "commentBody": "About PSA-11"})
+    assert run_hook("guard_jira_writes.py", event, tmp_path).returncode == 2
+
+
+def test_subtask_word_in_summary_does_not_count(dev_project):
+    event = jira("createJiraIssue", {"projectKey": "PSA", "issueTypeName": "Story", "parent": "PSA-12",
+                                     "summary": "Subtask-like story"})
+    assert run_hook("guard_jira_writes.py", event, dev_project).returncode == 2
