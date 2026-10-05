@@ -15,10 +15,18 @@ def main():
     keys = json.loads(STATE_FILE.read_text())
     api = Atlassian()
 
+    missing = []
     for story in STORIES:
         key = keys[story["id"]]
-        api.put(f"/rest/api/3/issue/{key}", json={"fields": {
-            "description": text_to_adf(story["description"]), "labels": story["labels"]}})
+        try:
+            api.put(f"/rest/api/3/issue/{key}", json={"fields": {
+                "description": text_to_adf(story["description"]), "labels": story["labels"]}})
+        except RuntimeError as err:
+            if "-> 404" not in str(err):
+                raise
+            missing.append(key)
+            print(f"  {key} not found (deleted?) - skipped")
+            continue
 
         seeded = {normalize(c) for c in story.get("comments", [])}
         comments = api.get(f"/rest/api/3/issue/{key}/comment?maxResults=100")["comments"]
@@ -28,7 +36,10 @@ def main():
                 api.delete(f"/rest/api/3/issue/{key}/comment/{c['id']}")
                 removed += 1
         print(f"  {key} reset" + (f" (removed {removed} comment(s))" if removed else ""))
-    print("Done. Tickets are back to the seeded state.")
+    if missing:
+        print(f"Done, but {len(missing)} ticket(s) are missing: run python -m seed.restore_ticket")
+    else:
+        print("Done. Tickets are back to the seeded state.")
 
 
 if __name__ == "__main__":
